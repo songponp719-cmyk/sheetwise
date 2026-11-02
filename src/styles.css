@@ -251,10 +251,19 @@ tbody tr:hover { background: #fafbff; }
 .builder-column-editor-heading strong { color: #526078; font-size: var(--font-secondary); }
 .builder-column-editor-heading span { color: #98a3b2; font-size: var(--font-caption); }
 .builder-column-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.builder-column-item { display: flex; min-width: min(100%, 300px); align-items: center; gap: 5px; padding: 5px; border: 1px solid #e8edf4; border-radius: 7px; background: #fff; }
+.builder-column-item { display: flex; min-width: min(100%, 330px); align-items: center; gap: 5px; padding: 5px; border: 1px solid #e8edf4; border-radius: 7px; background: #fff; transition: border-color .15s, background .15s, opacity .15s; }
+.builder-column-item.is-dragging { opacity: .45; }
+.builder-column-item.is-drop-target { border-color: #8395ee; background: #f2f4ff; }
+.column-drag-handle { width: 25px; height: 32px; display: inline-grid; flex: 0 0 25px; place-items: center; padding: 0; border: 0; border-radius: 5px; color: #8d99ad; background: transparent; cursor: grab; touch-action: none; }
+.column-drag-handle:hover { color: #586fda; background: #f2f4ff; }
+.column-drag-handle:active { cursor: grabbing; }
 .builder-column-item input { width: 150px; min-width: 70px; flex: 1; min-height: 32px; padding: 6px 8px; border: 1px solid #e5eaf2; border-radius: 5px; outline: 0; color: #526078; background: #fff; font-size: var(--font-caption); }
 .builder-column-item input:focus { border-color: #9aa9ef; box-shadow: 0 0 0 2px #7486ed1b; }
 .builder-column-item .rename-sheet-button { min-height: 32px; padding: 0 8px; white-space: nowrap; }
+.column-order-buttons { display: grid; grid-template-rows: 1fr 1fr; gap: 2px; }
+.column-order-button { width: 23px; height: 15px; display: inline-grid; place-items: center; padding: 0; border: 1px solid #e8edf4; border-radius: 4px; color: #738098; background: white; }
+.column-order-button:hover:not(:disabled) { border-color: #aeb8f0; color: #5f73d8; background: #f7f8ff; }
+.column-order-button:disabled { opacity: .35; cursor: not-allowed; }
 .remove-column-button { width: 32px; height: 32px; display: inline-grid; flex: 0 0 32px; place-items: center; padding: 0; border: 1px solid #f0d9dc; border-radius: 6px; color: #b95d68; background: #fffafa; }
 .remove-column-button:hover { border-color: #e7b5bb; background: #fff3f4; }
 .column-empty-hint { padding: 8px 0; color: #98a3b2; font-size: var(--font-caption); }

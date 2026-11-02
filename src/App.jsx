@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  ArrowLeftRight, ArrowUpRight, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp,
-  CloudUpload, Download, FileSpreadsheet, Files, Filter, Info, LoaderCircle, Plus,
+  ArrowDown, ArrowLeftRight, ArrowUp, ArrowUpRight, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp,
+  CloudUpload, Download, FileSpreadsheet, Files, Filter, GripVertical, Info, LoaderCircle, Plus,
   Search, ShieldCheck, Sparkles, Table2, X,
 } from 'lucide-react';
 
@@ -405,7 +405,7 @@ function ResultTable({ rows, allRows, sheetNames, sheetFilter, onSheetFilterChan
   );
 }
 
-function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRows, outputSheets, outputColumns, onAddRow, onRemoveRow, onAddSheet, onRenameSheet, onAddColumn, onRenameColumn, onRemoveColumn, onExport }) {
+function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRows, outputSheets, outputColumns, onAddRow, onRemoveRow, onAddSheet, onRenameSheet, onAddColumn, onRenameColumn, onRemoveColumn, onReorderColumns, onExport }) {
   const [activeSheet, setActiveSheet] = useState('ทั้งหมด');
   const [activeOutputSheetId, setActiveOutputSheetId] = useState('');
   const [previewSheetWindowStart, setPreviewSheetWindowStart] = useState(0);
@@ -421,6 +421,8 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
   const [sheetNameError, setSheetNameError] = useState('');
   const [columnDrafts, setColumnDrafts] = useState({});
   const [columnError, setColumnError] = useState('');
+  const [draggedColumnId, setDraggedColumnId] = useState('');
+  const [dragOverColumnId, setDragOverColumnId] = useState('');
   const [search, setSearch] = useState('');
   const [sourcePage, setSourcePage] = useState(0);
   const [outputPage, setOutputPage] = useState(0);
@@ -594,6 +596,29 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
     onAddColumn({ id: `builder-column-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, sourceHeader: null });
   }
 
+  function moveColumn(columnId, offset) {
+    const fromIndex = outputColumns.findIndex((column) => column.id === columnId);
+    const toIndex = fromIndex + offset;
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= outputColumns.length) return;
+    const reordered = [...outputColumns];
+    const [column] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, column);
+    onReorderColumns(reordered);
+  }
+
+  function dropColumn(targetColumnId) {
+    if (!draggedColumnId || draggedColumnId === targetColumnId) return;
+    const reordered = [...outputColumns];
+    const fromIndex = reordered.findIndex((column) => column.id === draggedColumnId);
+    const toIndex = reordered.findIndex((column) => column.id === targetColumnId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const [column] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, column);
+    onReorderColumns(reordered);
+    setDraggedColumnId('');
+    setDragOverColumnId('');
+  }
+
   function startExport() {
     setExportFilename('sheetwise-custom-table');
     setExportNameError('');
@@ -717,12 +742,35 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
           </div>
           <div className="builder-column-editor">
             <div className="builder-column-editor-heading">
-              <div><strong>จัดการคอลัมน์</strong><span>แก้ชื่อ เพิ่ม หรือลบคอลัมน์ในตารางและไฟล์ส่งออก</span></div>
+              <div><strong>จัดการคอลัมน์</strong><span>ลากเพื่อเรียงลำดับ หรือใช้ปุ่มลูกศร พร้อมแก้ชื่อ เพิ่ม หรือลบคอลัมน์</span></div>
               <button type="button" className="add-sheet-button" onClick={addBlankColumn}><Plus size={15} /> เพิ่มคอลัมน์</button>
             </div>
             <div className="builder-column-list">
-              {outputColumns.map((column) => <div className="builder-column-item" key={column.id}>
+              {outputColumns.map((column, index) => <div
+                className={`builder-column-item${draggedColumnId === column.id ? ' is-dragging' : ''}${dragOverColumnId === column.id ? ' is-drop-target' : ''}`}
+                key={column.id}
+                onDragOver={(event) => { event.preventDefault(); setDragOverColumnId(column.id); }}
+                onDrop={(event) => { event.preventDefault(); dropColumn(column.id); }}
+                onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOverColumnId(''); }}
+              >
+                <button
+                  type="button"
+                  className="column-drag-handle"
+                  draggable
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = 'move';
+                    event.dataTransfer.setData('text/plain', column.id);
+                    setDraggedColumnId(column.id);
+                  }}
+                  onDragEnd={() => { setDraggedColumnId(''); setDragOverColumnId(''); }}
+                  aria-label={`ลากเพื่อย้ายคอลัมน์ ${column.name}`}
+                  title="ลากเพื่อเปลี่ยนตำแหน่ง"
+                ><GripVertical size={17} /></button>
                 <input aria-label={`ชื่อคอลัมน์ ${column.name}`} value={columnDrafts[column.id] ?? column.name} onChange={(event) => { setColumnDrafts((previous) => ({ ...previous, [column.id]: event.target.value })); setColumnError(''); }} onKeyDown={(event) => { if (event.key === 'Enter') saveColumnName(column); }} />
+                <div className="column-order-buttons">
+                  <button type="button" className="column-order-button" onClick={() => moveColumn(column.id, -1)} disabled={index === 0} aria-label={`เลื่อน ${column.name} ไปก่อนหน้า`} title="เลื่อนไปก่อนหน้า"><ArrowUp size={14} /></button>
+                  <button type="button" className="column-order-button" onClick={() => moveColumn(column.id, 1)} disabled={index === outputColumns.length - 1} aria-label={`เลื่อน ${column.name} ไปถัดไป`} title="เลื่อนไปถัดไป"><ArrowDown size={14} /></button>
+                </div>
                 <button type="button" className="rename-sheet-button" onClick={() => saveColumnName(column)}>บันทึกชื่อ</button>
                 <button type="button" className="remove-column-button" onClick={() => { onRemoveColumn(column.id); setColumnError(''); }} aria-label={`ลบคอลัมน์ ${column.name}`} title={`ลบคอลัมน์ ${column.name}`}><X size={15} /></button>
               </div>)}
@@ -1077,6 +1125,7 @@ export default function App() {
             onAddColumn={(column) => setBuilderColumns((previous) => [...previous, column])}
             onRenameColumn={(id, name) => setBuilderColumns((previous) => previous.map((column) => column.id === id ? { ...column, name } : column))}
             onRemoveColumn={(id) => setBuilderColumns((previous) => previous.filter((column) => column.id !== id))}
+            onReorderColumns={setBuilderColumns}
             onExport={exportBuilderRows}
           /> : <>
           <section className="intro">
