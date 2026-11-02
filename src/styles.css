@@ -250,8 +250,8 @@ tbody tr:hover { background: #fafbff; }
 .builder-column-editor-heading > div { display: grid; gap: 3px; }
 .builder-column-editor-heading strong { color: #526078; font-size: var(--font-secondary); }
 .builder-column-editor-heading span { color: #98a3b2; font-size: var(--font-caption); }
-.builder-column-list { column-count: 3; column-gap: 8px; }
-.builder-column-item { display: flex; width: 100%; min-width: 0; align-items: center; gap: 5px; margin: 0 0 8px; padding: 5px; border: 1px solid #e8edf4; border-radius: 7px; background: #fff; break-inside: avoid; transition: border-color .15s, background .15s, opacity .15s; }
+.builder-column-list { display: grid; grid-auto-flow: column; grid-template-rows: repeat(var(--column-grid-rows, 7), auto); grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.builder-column-item { display: flex; width: 100%; min-width: 0; align-items: center; gap: 5px; padding: 5px; border: 1px solid #e8edf4; border-radius: 7px; background: #fff; transition: border-color .15s, background .15s, opacity .15s; }
 .builder-column-item.is-dragging { opacity: .45; }
 .builder-column-item.is-drop-target { border-color: #8395ee; background: #f2f4ff; }
 .column-position { width: 24px; height: 24px; display: inline-grid; flex: 0 0 24px; place-items: center; border-radius: 50%; color: #536cd6; background: #edf1ff; font-size: var(--font-caption); font-weight: 700; }
@@ -355,6 +355,7 @@ th, td { font-size: 11px; }
   .sidebar { width: 205px; }
   .main-content { margin-left: 205px; }
   .builder-add-success { left: calc(50% + 102.5px); }
+  .builder-column-list { grid-template-rows: repeat(var(--column-grid-rows-medium, 10), auto); }
   .topbar { padding: 0 30px; }
   .page-wrap { padding-right: 30px; padding-left: 30px; }
   .upload-section, .preview-section, .results-section { padding-right: 17px; padding-left: 17px; }
@@ -433,7 +434,7 @@ th, td { font-size: 11px; }
   .result-actions { width: 100%; justify-content: flex-start; }
   .result-sheet-filter { flex: 1; }
   .result-sheet-filter select { min-width: 0; max-width: none; flex: 1; }
-  .builder-column-list { column-count: 2; }
+  .builder-column-list { grid-template-rows: repeat(var(--column-grid-rows-small, 20), auto); }
 }
 @media (max-width: 420px) {
   .step-line { margin: 0 4px; }
@@ -443,7 +444,6 @@ th, td { font-size: 11px; }
   .section-heading { gap: 8px; }
   .file-count { padding: 6px; font-size: 0; }
   .file-count svg { width: 15px; height: 15px; }
-  .builder-column-list { column-count: 1; }
 }
 
 /* Use a consistent, accessible web type scale: 16px body, 14px secondary, 12px captions. */

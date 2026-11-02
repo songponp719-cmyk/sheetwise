@@ -745,7 +745,14 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
               <div><strong>จัดการคอลัมน์</strong><span>ลำดับจากบนลงล่างแล้วซ้ายไปขวา · ลากหรือใช้ปุ่มลูกศรเพื่อจัดเรียง</span></div>
               <button type="button" className="add-sheet-button" onClick={addBlankColumn}><Plus size={15} /> เพิ่มคอลัมน์</button>
             </div>
-            <div className="builder-column-list">
+            <div
+              className="builder-column-list"
+              style={{
+                '--column-grid-rows': Math.max(1, Math.ceil(outputColumns.length / 3)),
+                '--column-grid-rows-medium': Math.max(1, Math.ceil(outputColumns.length / 2)),
+                '--column-grid-rows-small': Math.max(1, outputColumns.length),
+              }}
+            >
               {outputColumns.map((column, index) => <div
                 className={`builder-column-item${draggedColumnId === column.id ? ' is-dragging' : ''}${dragOverColumnId === column.id ? ' is-drop-target' : ''}`}
                 key={column.id}
