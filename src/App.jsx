@@ -405,7 +405,7 @@ function ResultTable({ rows, allRows, sheetNames, sheetFilter, onSheetFilterChan
   );
 }
 
-function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRows, outputSheets, onAddRow, onRemoveRow, onAddSheet, onRenameSheet, onExport }) {
+function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRows, outputSheets, outputColumns, onAddRow, onRemoveRow, onAddSheet, onRenameSheet, onAddColumn, onRenameColumn, onRemoveColumn, onExport }) {
   const [activeSheet, setActiveSheet] = useState('ทั้งหมด');
   const [activeOutputSheetId, setActiveOutputSheetId] = useState('');
   const [previewSheetWindowStart, setPreviewSheetWindowStart] = useState(0);
@@ -413,9 +413,14 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
   const [selectedSourceIds, setSelectedSourceIds] = useState(() => new Set());
   const [isChoosingOutputSheet, setIsChoosingOutputSheet] = useState(false);
   const [batchOutputSheetId, setBatchOutputSheetId] = useState('');
+  const [isChoosingExportName, setIsChoosingExportName] = useState(false);
+  const [exportFilename, setExportFilename] = useState('sheetwise-custom-table');
+  const [exportNameError, setExportNameError] = useState('');
   const [addSuccess, setAddSuccess] = useState(null);
   const [sheetNameDraft, setSheetNameDraft] = useState('');
   const [sheetNameError, setSheetNameError] = useState('');
+  const [columnDrafts, setColumnDrafts] = useState({});
+  const [columnError, setColumnError] = useState('');
   const [search, setSearch] = useState('');
   const [sourcePage, setSourcePage] = useState(0);
   const [outputPage, setOutputPage] = useState(0);
@@ -443,6 +448,9 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
     setSheetNameDraft(activeOutputSheet?.name || '');
     setSheetNameError('');
   }, [activeOutputSheet?.id, activeOutputSheet?.name]);
+  useEffect(() => {
+    setColumnDrafts(Object.fromEntries(outputColumns.map((column) => [column.id, column.name])));
+  }, [outputColumns]);
   useEffect(() => () => {
     addSuccessTimers.current.forEach((timer) => window.clearTimeout(timer));
   }, []);
@@ -562,6 +570,51 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
     setSheetNameError('');
   }
 
+  function saveColumnName(column) {
+    const name = (columnDrafts[column.id] ?? '').trim();
+    if (!name) {
+      setColumnError('ชื่อคอลัมน์ห้ามเว้นว่าง');
+      return;
+    }
+    if (outputColumns.some((item) => item.id !== column.id && item.name.trim().toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      setColumnError('ชื่อคอลัมน์นี้มีอยู่แล้ว');
+      return;
+    }
+    onRenameColumn(column.id, name);
+    setColumnError('');
+  }
+
+  function addBlankColumn() {
+    let number = outputColumns.length + 1;
+    let name = `คอลัมน์ใหม่ ${number}`;
+    while (outputColumns.some((column) => column.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+      number += 1;
+      name = `คอลัมน์ใหม่ ${number}`;
+    }
+    onAddColumn({ id: `builder-column-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, name, sourceHeader: null });
+  }
+
+  function startExport() {
+    setExportFilename('sheetwise-custom-table');
+    setExportNameError('');
+    setIsChoosingExportName(true);
+  }
+
+  function confirmExport() {
+    const name = exportFilename.trim();
+    if (!name) {
+      setExportNameError('กรุณาระบุชื่อไฟล์');
+      return;
+    }
+    if (['<', '>', ':', '"', '/', '\\', '|', '?', '*'].some((character) => name.includes(character))) {
+      setExportNameError('ชื่อไฟล์ห้ามมีอักขระ \\, /, :, *, ?, ", <, > หรือ |');
+      return;
+    }
+    const filename = /\.xlsx$/i.test(name) ? name : `${name}.xlsx`;
+    onExport(filename);
+    setIsChoosingExportName(false);
+  }
+
   return (
     <>
       <section className="intro">
@@ -647,7 +700,7 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
         <section className="section-block builder-output-section">
           <div className="section-heading">
             <div><div className="section-kicker">STEP 03 <span>·</span> CUSTOM TABLE</div><h2>ตารางใหม่ที่ปรับแต่ง</h2><p>เพิ่มชีท ตั้งชื่อชีท และเลือกชีทปลายทางก่อนเพิ่มแถวจากพรีวิว</p></div>
-            <div className="builder-output-actions"><span className="file-count"><Files size={15} /> {addedRows.length.toLocaleString()} แถว · {outputSheets.length} ชีต</span><button className="export-button" disabled={!outputSheets.length} onClick={onExport}><Download size={15} /> ส่งออก Excel</button></div>
+            <div className="builder-output-actions"><span className="file-count"><Files size={15} /> {addedRows.length.toLocaleString()} แถว · {outputSheets.length} ชีต</span><button className="export-button" disabled={!outputSheets.length} onClick={startExport}><Download size={15} /> ส่งออก Excel</button></div>
           </div>
           <div className="builder-sheet-management">
             <div className="builder-sheet-tabs" role="tablist" aria-label="ชีตในตารางใหม่">
@@ -662,16 +715,37 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
               {sheetNameError && <span className="sheet-name-error" role="alert">{sheetNameError}</span>}
             </div>}
           </div>
+          <div className="builder-column-editor">
+            <div className="builder-column-editor-heading">
+              <div><strong>จัดการคอลัมน์</strong><span>แก้ชื่อ เพิ่ม หรือลบคอลัมน์ในตารางและไฟล์ส่งออก</span></div>
+              <button type="button" className="add-sheet-button" onClick={addBlankColumn}><Plus size={15} /> เพิ่มคอลัมน์</button>
+            </div>
+            <div className="builder-column-list">
+              {outputColumns.map((column) => <div className="builder-column-item" key={column.id}>
+                <input aria-label={`ชื่อคอลัมน์ ${column.name}`} value={columnDrafts[column.id] ?? column.name} onChange={(event) => { setColumnDrafts((previous) => ({ ...previous, [column.id]: event.target.value })); setColumnError(''); }} onKeyDown={(event) => { if (event.key === 'Enter') saveColumnName(column); }} />
+                <button type="button" className="rename-sheet-button" onClick={() => saveColumnName(column)}>บันทึกชื่อ</button>
+                <button type="button" className="remove-column-button" onClick={() => { onRemoveColumn(column.id); setColumnError(''); }} aria-label={`ลบคอลัมน์ ${column.name}`} title={`ลบคอลัมน์ ${column.name}`}><X size={15} /></button>
+              </div>)}
+              {!outputColumns.length && <span className="column-empty-hint">ยังไม่มีคอลัมน์ เพิ่มคอลัมน์เพื่อเริ่มจัดตาราง</span>}
+            </div>
+            {columnError && <span className="sheet-name-error" role="alert">{columnError}</span>}
+          </div>
           <div className="table-scroll builder-table-scroll">
             <table>
-              <thead><tr><th className="builder-add-column">นำออก</th><th>{sourceHeader}</th>{headers.map((header) => <th key={header}>{header}</th>)}</tr></thead>
+              <thead><tr><th className="builder-add-column">นำออก</th>{outputColumns.map((column) => <th key={column.id}>{column.name}</th>)}</tr></thead>
               <tbody>
                 {visibleOutputRows.map(({ id, sheetName, row }) => <tr key={id}>
                   <td className="builder-add-column"><button className="remove-row-button" onClick={() => onRemoveRow(id)} aria-label={`นำแถวจากชีต ${sheetName} ออกจากตาราง`} title="นำแถวนี้ออกจากตาราง"><X size={15} /></button></td>
-                  <td>{sheetName}</td>
-                  {headers.map((header) => <td key={header} title={String(row[header] ?? '')}>{String(row[header] ?? '') || <span className="empty-cell">—</span>}</td>)}
+                  {outputColumns.map((column) => {
+                    const value = column.sourceHeader === '__source_sheet__'
+                      ? sheetName
+                      : column.sourceHeader
+                        ? row[column.sourceHeader] ?? ''
+                        : '';
+                    return <td key={column.id} title={String(value)}>{String(value) || <span className="empty-cell">—</span>}</td>;
+                  })}
                 </tr>)}
-                {!outputRows.length && <tr><td className="table-empty" colSpan={headers.length + 2}>ชีตนี้ยังไม่มีข้อมูล — เลือกแถวจากพรีวิวแล้วกดปุ่ม +</td></tr>}
+                {!outputRows.length && <tr><td className="table-empty" colSpan={outputColumns.length + 1}>ชีตนี้ยังไม่มีข้อมูล — เลือกแถวจากพรีวิวแล้วกดปุ่ม +</td></tr>}
               </tbody>
             </table>
           </div>
@@ -696,6 +770,29 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
           <div className="confirm-actions">
             <button className="confirm-cancel" autoFocus onClick={() => setIsChoosingOutputSheet(false)}>ยกเลิก</button>
             <button className="confirm-add" disabled={!batchOutputSheetId} onClick={confirmAddSelectedRows}><Plus size={16} /> เพิ่มข้อมูล</button>
+          </div>
+        </section>
+      </div>}
+      {isChoosingExportName && <div className="confirm-overlay" onMouseDown={(event) => {
+        if (event.target === event.currentTarget) setIsChoosingExportName(false);
+      }} onKeyDown={(event) => {
+        if (event.key === 'Escape') setIsChoosingExportName(false);
+      }}>
+        <section className="confirm-dialog builder-add-dialog" role="dialog" aria-modal="true" aria-labelledby="builder-export-title" aria-describedby="builder-export-description">
+          <span className="confirm-icon builder-add-icon"><Download size={20} /></span>
+          <h2 id="builder-export-title">ตั้งชื่อไฟล์ส่งออก</h2>
+          <p id="builder-export-description">ไฟล์จะส่งออกเป็น Excel โดยแยกข้อมูลตามชีตที่สร้างไว้</p>
+          <label className="destination-sheet-select">
+            <span>ชื่อไฟล์</span>
+            <div className="export-filename-field">
+              <input autoFocus value={exportFilename} onChange={(event) => { setExportFilename(event.target.value); setExportNameError(''); }} onKeyDown={(event) => { if (event.key === 'Enter') confirmExport(); }} />
+              <span>.xlsx</span>
+            </div>
+            {exportNameError && <span className="sheet-name-error" role="alert">{exportNameError}</span>}
+          </label>
+          <div className="confirm-actions">
+            <button className="confirm-cancel" onClick={() => setIsChoosingExportName(false)}>ยกเลิก</button>
+            <button className="confirm-add" onClick={confirmExport}><Download size={16} /> ส่งออก Excel</button>
           </div>
         </section>
       </div>}
@@ -726,6 +823,7 @@ export default function App() {
   const [isBuilderReading, setIsBuilderReading] = useState(false);
   const [builderRows, setBuilderRows] = useState([]);
   const [builderSheets, setBuilderSheets] = useState([]);
+  const [builderColumns, setBuilderColumns] = useState([]);
   const [isReading, setIsReading] = useState(false);
   const [notice, setNotice] = useState('');
   const inputRefs = [useRef(null), useRef(null)];
@@ -755,9 +853,15 @@ export default function App() {
     setIsBuilderReading(true);
     try {
       const parsed = await parseWorkbook(await file.arrayBuffer(), file.name);
+      const headers = [...new Set(parsed.sheets.flatMap((sheet) => sheet.headers))];
+      const sourceHeader = headers.includes('ชีตต้นทาง') ? 'ชีตต้นทาง (แหล่งที่มา)' : 'ชีตต้นทาง';
       setBuilderFile(parsed);
       setBuilderRows([]);
       setBuilderSheets([{ id: `builder-sheet-${Date.now()}`, name: 'ตาราง 1' }]);
+      setBuilderColumns([
+        { id: 'builder-source-sheet', name: sourceHeader, sourceHeader: '__source_sheet__' },
+        ...headers.map((header, index) => ({ id: `builder-source-column-${index}`, name: header, sourceHeader: header })),
+      ]);
     } catch (error) {
       setBuilderError(error instanceof Error ? error.message : 'อ่านไฟล์ไม่สำเร็จ');
     } finally {
@@ -765,19 +869,23 @@ export default function App() {
     }
   }
 
-  async function exportBuilderRows() {
+  async function exportBuilderRows(filename) {
     if (!builderSheets.length) return;
     try {
-      const headers = [...new Set(builderFile?.sheets.flatMap((sheet) => sheet.headers) || [])];
-      const sourceHeader = headers.includes('ชีตต้นทาง') ? 'ชีตต้นทาง (แหล่งที่มา)' : 'ชีตต้นทาง';
       await downloadWorkbook(builderSheets.map((sheet) => ({
         name: sheet.name,
         rows: builderRows.filter((item) => item.outputSheetId === sheet.id).map(({ sheetName, row }) => ({
-          [sourceHeader]: sheetName,
-          ...Object.fromEntries(headers.map((header) => [header, row[header] ?? ''])),
+          ...Object.fromEntries(builderColumns.map((column) => [
+            column.name,
+            column.sourceHeader === '__source_sheet__'
+              ? sheetName
+              : column.sourceHeader
+                ? row[column.sourceHeader] ?? ''
+                : '',
+          ])),
         })),
-      })), 'sheetwise-custom-table.xlsx');
-      setNotice(`ส่งออกตารางที่ปรับแต่ง ${builderRows.length.toLocaleString()} แถวแล้ว`);
+      })), filename);
+      setNotice(`ส่งออกไฟล์ ${filename} พร้อมข้อมูล ${builderRows.length.toLocaleString()} แถวแล้ว`);
     } catch (error) {
       setNotice(`ส่งออกไฟล์ไม่สำเร็จ: ${error instanceof Error ? error.message : 'เกิดข้อผิดพลาดที่ไม่ทราบสาเหตุ'}`);
     }
@@ -958,13 +1066,17 @@ export default function App() {
             fileError={builderError}
             isReading={isBuilderReading}
             onFile={handleBuilderFile}
-            onClear={() => { setBuilderFile(null); setBuilderRows([]); setBuilderSheets([]); setBuilderError(''); }}
+            onClear={() => { setBuilderFile(null); setBuilderRows([]); setBuilderSheets([]); setBuilderColumns([]); setBuilderError(''); }}
             addedRows={builderRows}
             outputSheets={builderSheets}
+            outputColumns={builderColumns}
             onAddRow={addBuilderRow}
             onRemoveRow={(id) => setBuilderRows((previous) => previous.filter((row) => row.id !== id))}
             onAddSheet={(sheet) => setBuilderSheets((previous) => [...previous, sheet])}
             onRenameSheet={(id, name) => setBuilderSheets((previous) => previous.map((sheet) => sheet.id === id ? { ...sheet, name } : sheet))}
+            onAddColumn={(column) => setBuilderColumns((previous) => [...previous, column])}
+            onRenameColumn={(id, name) => setBuilderColumns((previous) => previous.map((column) => column.id === id ? { ...column, name } : column))}
+            onRemoveColumn={(id) => setBuilderColumns((previous) => previous.filter((column) => column.id !== id))}
             onExport={exportBuilderRows}
           /> : <>
           <section className="intro">
