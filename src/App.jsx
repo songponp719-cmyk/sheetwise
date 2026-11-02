@@ -742,7 +742,7 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
           </div>
           <div className="builder-column-editor">
             <div className="builder-column-editor-heading">
-              <div><strong>จัดการคอลัมน์</strong><span>ลากเพื่อเรียงลำดับ หรือใช้ปุ่มลูกศร พร้อมแก้ชื่อ เพิ่ม หรือลบคอลัมน์</span></div>
+              <div><strong>จัดการคอลัมน์</strong><span>ลำดับจากบนลงล่างแล้วซ้ายไปขวา · ลากหรือใช้ปุ่มลูกศรเพื่อจัดเรียง</span></div>
               <button type="button" className="add-sheet-button" onClick={addBlankColumn}><Plus size={15} /> เพิ่มคอลัมน์</button>
             </div>
             <div className="builder-column-list">
@@ -753,6 +753,7 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
                 onDrop={(event) => { event.preventDefault(); dropColumn(column.id); }}
                 onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget)) setDragOverColumnId(''); }}
               >
+                <span className="column-position" aria-label={`ตำแหน่งที่ ${index + 1}`} title={`ตำแหน่งที่ ${index + 1}`}>{index + 1}</span>
                 <button
                   type="button"
                   className="column-drag-handle"

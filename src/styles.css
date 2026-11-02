@@ -250,10 +250,11 @@ tbody tr:hover { background: #fafbff; }
 .builder-column-editor-heading > div { display: grid; gap: 3px; }
 .builder-column-editor-heading strong { color: #526078; font-size: var(--font-secondary); }
 .builder-column-editor-heading span { color: #98a3b2; font-size: var(--font-caption); }
-.builder-column-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.builder-column-item { display: flex; min-width: min(100%, 330px); align-items: center; gap: 5px; padding: 5px; border: 1px solid #e8edf4; border-radius: 7px; background: #fff; transition: border-color .15s, background .15s, opacity .15s; }
+.builder-column-list { column-count: 3; column-gap: 8px; }
+.builder-column-item { display: flex; width: 100%; min-width: 0; align-items: center; gap: 5px; margin: 0 0 8px; padding: 5px; border: 1px solid #e8edf4; border-radius: 7px; background: #fff; break-inside: avoid; transition: border-color .15s, background .15s, opacity .15s; }
 .builder-column-item.is-dragging { opacity: .45; }
 .builder-column-item.is-drop-target { border-color: #8395ee; background: #f2f4ff; }
+.column-position { width: 24px; height: 24px; display: inline-grid; flex: 0 0 24px; place-items: center; border-radius: 50%; color: #536cd6; background: #edf1ff; font-size: var(--font-caption); font-weight: 700; }
 .column-drag-handle { width: 25px; height: 32px; display: inline-grid; flex: 0 0 25px; place-items: center; padding: 0; border: 0; border-radius: 5px; color: #8d99ad; background: transparent; cursor: grab; touch-action: none; }
 .column-drag-handle:hover { color: #586fda; background: #f2f4ff; }
 .column-drag-handle:active { cursor: grabbing; }
@@ -432,6 +433,7 @@ th, td { font-size: 11px; }
   .result-actions { width: 100%; justify-content: flex-start; }
   .result-sheet-filter { flex: 1; }
   .result-sheet-filter select { min-width: 0; max-width: none; flex: 1; }
+  .builder-column-list { column-count: 2; }
 }
 @media (max-width: 420px) {
   .step-line { margin: 0 4px; }
@@ -441,6 +443,7 @@ th, td { font-size: 11px; }
   .section-heading { gap: 8px; }
   .file-count { padding: 6px; font-size: 0; }
   .file-count svg { width: 15px; height: 15px; }
+  .builder-column-list { column-count: 1; }
 }
 
 /* Use a consistent, accessible web type scale: 16px body, 14px secondary, 12px captions. */
