@@ -298,6 +298,50 @@ function DropZone({ index, file, onFile, onClear, error, inputRef, accept = '.xl
   );
 }
 
+function BuilderUploadZone({ files, onFiles, onRemoveFile, onClear, error, inputRef, isReading }) {
+  const [dragging, setDragging] = useState(false);
+  const handleFiles = (selectedFiles) => {
+    if (selectedFiles?.length) onFiles(Array.from(selectedFiles));
+  };
+  return (
+    <div
+      className={`upload-card builder-upload-card ${dragging ? 'is-dragging' : ''} ${files.length ? 'has-file' : ''}`}
+      onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(event) => { event.preventDefault(); setDragging(false); handleFiles(event.dataTransfer.files); }}
+    >
+      <input ref={inputRef} type="file" accept=".xlsx,.xls" multiple hidden disabled={isReading} onChange={(event) => {
+        handleFiles(event.target.files);
+        event.target.value = '';
+      }} />
+      <button type="button" className="upload-target" disabled={isReading} onClick={() => inputRef.current?.click()}>
+        <span className="upload-icon"><CloudUpload size={23} /></span>
+        <span className="upload-copy">
+          <strong>{isReading ? 'กำลังอ่านไฟล์...' : 'เลือกไฟล์ Excel จากอุปกรณ์'}</strong>
+          <span>เลือกได้หลายไฟล์ หรือเพิ่มไฟล์ภายหลังได้</span>
+        </span>
+        <ArrowUpRight size={17} className="upload-arrow" />
+      </button>
+      <span className="file-hint">รองรับ XLSX, XLS · ไม่เกิน 25 MB ต่อไฟล์</span>
+      {files.length > 0 && <div className="builder-upload-list">
+        <div className="builder-upload-list-heading">
+          <strong>{files.length.toLocaleString()} ไฟล์ที่เพิ่มแล้ว</strong>
+          <button type="button" className="builder-clear-files" disabled={isReading} onClick={onClear}>ล้างไฟล์ทั้งหมด</button>
+        </div>
+        {files.map((file, index) => (
+          <div className="builder-upload-item" key={file.id}>
+            <FileSpreadsheet size={16} />
+            <strong title={file.filename}>{file.filename}</strong>
+            <span>{file.sheets.length} ชีต</span>
+            <button type="button" className="icon-button builder-remove-file" disabled={isReading} onClick={() => onRemoveFile(file.id)} aria-label={`ลบไฟล์ ${file.filename}`} title={`ลบไฟล์ ${file.filename}`}><X size={15} /></button>
+          </div>
+        ))}
+      </div>}
+      {error && <p className="error-text">{error}</p>}
+    </div>
+  );
+}
+
 function TablePagination({ page, pageSize, total, onPageChange }) {
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pageCount - 1);
@@ -405,10 +449,9 @@ function ResultTable({ rows, allRows, sheetNames, sheetFilter, onSheetFilterChan
   );
 }
 
-function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRows, outputSheets, outputColumns, onAddRow, onRemoveRow, onAddSheet, onRenameSheet, onAddColumn, onRenameColumn, onRemoveColumn, onReorderColumns, onExport }) {
+function TableBuilderPage({ sourceFiles, fileError, isReading, onFiles, onRemoveFile, onClear, addedRows, outputSheets, outputColumns, onAddRow, onRemoveRow, onAddSheet, onRenameSheet, onAddColumn, onRenameColumn, onRemoveColumn, onReorderColumns, onExport }) {
   const [activeSheet, setActiveSheet] = useState('ทั้งหมด');
   const [activeOutputSheetId, setActiveOutputSheetId] = useState('');
-  const [previewSheetWindowStart, setPreviewSheetWindowStart] = useState(0);
   const [multiSelectMode, setMultiSelectMode] = useState(false);
   const [selectedSourceIds, setSelectedSourceIds] = useState(() => new Set());
   const [isChoosingOutputSheet, setIsChoosingOutputSheet] = useState(false);
@@ -428,6 +471,33 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
   const [outputPage, setOutputPage] = useState(0);
   const inputRef = useRef(null);
   const addSuccessTimers = useRef([]);
+  const file = useMemo(() => {
+    if (!sourceFiles.length) return null;
+    const usedFileLabels = new Set();
+    const usedSheetNames = new Set();
+    const groups = sourceFiles.map((sourceFile) => {
+      let fileLabel = sourceFile.filename;
+      let duplicate = 2;
+      while (usedFileLabels.has(fileLabel)) {
+        fileLabel = `${sourceFile.filename} (${duplicate})`;
+        duplicate += 1;
+      }
+      usedFileLabels.add(fileLabel);
+      const sheets = sourceFile.sheets.map((sheet) => {
+        const baseName = `${fileLabel} · ${sheet.name}`;
+        let name = baseName;
+        let duplicateSheet = 2;
+        while (usedSheetNames.has(name)) {
+          name = `${baseName} (${duplicateSheet})`;
+          duplicateSheet += 1;
+        }
+        usedSheetNames.add(name);
+        return { ...sheet, name };
+      });
+      return { id: sourceFile.id, filename: fileLabel, sheets };
+    });
+    return { groups, sheets: groups.flatMap((group) => group.sheets) };
+  }, [sourceFiles]);
   const activeOutputSheet = outputSheets.find((sheet) => sheet.id === activeOutputSheetId) || outputSheets[0];
   const outputRows = addedRows.filter((item) => item.outputSheetId === activeOutputSheet?.id);
   const headers = useMemo(() => [...new Set(file?.sheets.flatMap((sheet) => sheet.headers) || [])], [file]);
@@ -437,7 +507,6 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
     setSearch('');
     setSourcePage(0);
     setOutputPage(0);
-    setPreviewSheetWindowStart(0);
     setSelectedSourceIds(new Set());
     setMultiSelectMode(false);
   }, [file]);
@@ -486,8 +555,6 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
   );
   const visibleSourceIds = visibleSourceRows.map(({ id }) => id);
   const allVisibleSourceSelected = visibleSourceIds.length > 0 && visibleSourceIds.every((id) => selectedSourceIds.has(id));
-  const sheetWindowEnd = Math.min(previewSheetWindowStart + 5, file?.sheets.length || 0);
-
   function showAddedMessage(count, sheetName) {
     addSuccessTimers.current.forEach((timer) => window.clearTimeout(timer));
     setAddSuccess({ count, sheetName, fading: false, id: Date.now() });
@@ -650,23 +717,22 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
 
       <section className="section-block table-builder-section">
         <div className="section-heading">
-          <div><div className="section-kicker">STEP 01 <span>·</span> UPLOAD</div><h2>อัปโหลดไฟล์ Excel</h2><p>รองรับไฟล์ .xlsx และ .xls โดยประมวลผลในอุปกรณ์นี้</p></div>
-          {file && <span className="file-count"><Files size={15} /> {file.sheets.length} ชีต</span>}
+          <div><div className="section-kicker">STEP 01 <span>·</span> UPLOAD</div><h2>อัปโหลดไฟล์ Excel</h2><p>เพิ่มไฟล์ .xlsx และ .xls ได้ไม่จำกัด โดยประมวลผลในอุปกรณ์นี้</p></div>
+          {sourceFiles.length > 0 && <span className="file-count"><Files size={15} /> {sourceFiles.length} ไฟล์ · {file.sheets.length} ชีต</span>}
         </div>
-        <DropZone
-          index={0}
-          file={file}
-          onFile={(_, selectedFile) => onFile(selectedFile)}
+        <BuilderUploadZone
+          files={sourceFiles}
+          onFiles={onFiles}
+          onRemoveFile={onRemoveFile}
           onClear={onClear}
           error={fileError}
           inputRef={inputRef}
-          accept=".xlsx,.xls"
+          isReading={isReading}
         />
         {isReading && <div className="reading-indicator"><LoaderCircle size={16} className="spin" /> กำลังอ่านและจัดระเบียบไฟล์ในเบราว์เซอร์...</div>}
       </section>
 
-      {file && <>
-        <section className="section-block builder-source-section">
+      {file && <section className="section-block builder-source-section">
           <div className="section-heading">
             <div><div className="section-kicker">STEP 02 <span>·</span> REVIEW DATA</div><h2>พรีวิวและเลือกข้อมูลจากไฟล์</h2><p>เลือกชีตหรือค้นหาข้อมูล จากนั้นกดปุ่ม + ที่แถวนั้น</p></div>
           </div>
@@ -678,15 +744,22 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
             </label>
             <div className="source-sheet-pager" role="group" aria-label="เลือกชีตพรีวิว">
               <button type="button" className={`source-all-sheets ${activeSheet === 'ทั้งหมด' ? 'active' : ''}`} onClick={() => { setActiveSheet('ทั้งหมด'); setSourcePage(0); }}>ทุกชีต</button>
-              <button type="button" className="sheet-window-arrow" disabled={previewSheetWindowStart === 0} onClick={() => { setPreviewSheetWindowStart(Math.max(0, previewSheetWindowStart - 5)); setSourcePage(0); }} aria-label="ชีต 5 ชีตก่อนหน้า"><ChevronLeft size={18} /></button>
-              <div className="source-sheet-dots">
-                {file.sheets.slice(previewSheetWindowStart, sheetWindowEnd).map((sheet, index) => {
-                  const sheetIndex = previewSheetWindowStart + index;
-                  return <button key={sheet.name} type="button" className={`source-sheet-dot ${activeSheet === sheet.name ? 'active' : ''}`} onClick={() => { setActiveSheet(sheet.name); setSourcePage(0); }} aria-label={`แสดงชีต ${sheet.name}`} aria-pressed={activeSheet === sheet.name} title={sheet.name}>{sheetIndex + 1}</button>;
-                })}
+              <div className="source-file-sheet-groups">
+                {file.groups.map((group) => <div className="source-file-sheet-group" key={group.id}>
+                  <strong className="source-file-sheet-label" title={group.filename}>{group.filename}</strong>
+                  <div className="source-file-sheet-buttons">
+                    {group.sheets.map((sheet) => <button
+                      key={sheet.name}
+                      type="button"
+                      className={`source-sheet-button ${activeSheet === sheet.name ? 'active' : ''}`}
+                      onClick={() => { setActiveSheet(sheet.name); setSourcePage(0); }}
+                      aria-label={`แสดงชีต ${sheet.name}`}
+                      aria-pressed={activeSheet === sheet.name}
+                      title={sheet.name}
+                    >{sheet.name.slice(group.filename.length + 3)}</button>)}
+                  </div>
+                </div>)}
               </div>
-              <button type="button" className="sheet-window-arrow" disabled={sheetWindowEnd >= file.sheets.length} onClick={() => { setPreviewSheetWindowStart(Math.min(Math.max(0, file.sheets.length - 1), previewSheetWindowStart + 5)); setSourcePage(0); }} aria-label="ชีต 5 ชีตถัดไป"><ChevronRight size={18} /></button>
-              <span className="source-sheet-name" title={activeSheet === 'ทั้งหมด' ? 'ทุกชีต' : activeSheet}>{activeSheet === 'ทั้งหมด' ? 'ทุกชีต' : activeSheet}</span>
             </div>
             <div className="builder-selection-actions">
               <button type="button" className={`select-mode-button ${multiSelectMode ? 'active' : ''}`} aria-pressed={multiSelectMode} onClick={() => { setMultiSelectMode((enabled) => !enabled); setSelectedSourceIds(new Set()); }}>
@@ -720,9 +793,9 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
             </table>
           </div>
           {sourceRows.length > 0 && <TablePagination page={Math.min(sourcePage, sourcePageCount - 1)} pageSize={FILE_PREVIEW_PAGE_SIZE} total={sourceRows.length} onPageChange={setSourcePage} />}
-        </section>
+      </section>}
 
-        <section className="section-block builder-output-section">
+      {outputSheets.length > 0 && <section className="section-block builder-output-section">
           <div className="section-heading">
             <div><div className="section-kicker">STEP 03 <span>·</span> CUSTOM TABLE</div><h2>ตารางใหม่ที่ปรับแต่ง</h2><p>เพิ่มชีท ตั้งชื่อชีท และเลือกชีทปลายทางก่อนเพิ่มแถวจากพรีวิว</p></div>
             <div className="builder-output-actions"><span className="file-count"><Files size={15} /> {addedRows.length.toLocaleString()} แถว · {outputSheets.length} ชีต</span><button className="export-button" disabled={!outputSheets.length} onClick={startExport}><Download size={15} /> ส่งออก Excel</button></div>
@@ -806,8 +879,7 @@ function TableBuilderPage({ file, fileError, isReading, onFile, onClear, addedRo
             </table>
           </div>
           {outputRows.length > 0 && <TablePagination page={Math.min(outputPage, outputPageCount - 1)} pageSize={FILE_PREVIEW_PAGE_SIZE} total={outputRows.length} onPageChange={setOutputPage} />}
-        </section>
-      </>}
+      </section>}
       {isChoosingOutputSheet && <div className="confirm-overlay" onMouseDown={(event) => {
         if (event.target === event.currentTarget) setIsChoosingOutputSheet(false);
       }} onKeyDown={(event) => {
@@ -874,7 +946,7 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [selectionMode, setSelectionMode] = useState(false);
   const [pendingRemovalIds, setPendingRemovalIds] = useState([]);
-  const [builderFile, setBuilderFile] = useState(null);
+  const [builderSourceFiles, setBuilderSourceFiles] = useState([]);
   const [builderError, setBuilderError] = useState('');
   const [isBuilderReading, setIsBuilderReading] = useState(false);
   const [builderRows, setBuilderRows] = useState([]);
@@ -884,6 +956,7 @@ export default function App() {
   const [notice, setNotice] = useState('');
   const inputRefs = [useRef(null), useRef(null)];
   const builderRowInstance = useRef(0);
+  const builderFileInstance = useRef(0);
   const ready = files.every(Boolean);
 
   function addBuilderRow(item) {
@@ -895,34 +968,68 @@ export default function App() {
     }]);
   }
 
-  async function handleBuilderFile(file) {
-    setBuilderError('');
-    const extension = file.name.split('.').pop()?.toLowerCase();
-    if (!['xlsx', 'xls'].includes(extension)) {
-      setBuilderError('กรุณาเลือกไฟล์ Excel นามสกุล .xlsx หรือ .xls');
-      return;
-    }
-    if (file.size > FILE_LIMIT) {
-      setBuilderError('ไฟล์มีขนาดเกิน 25 MB');
-      return;
-    }
+  async function handleBuilderFiles(filesToAdd) {
+    if (isBuilderReading) return;
+    const validFiles = [];
+    const errors = [];
+    filesToAdd.forEach((file) => {
+      const extension = file.name.split('.').pop()?.toLowerCase();
+      if (!['xlsx', 'xls'].includes(extension)) {
+        errors.push(`${file.name}: รองรับเฉพาะไฟล์ .xlsx และ .xls`);
+      } else if (file.size > FILE_LIMIT) {
+        errors.push(`${file.name}: ไฟล์มีขนาดเกิน 25 MB`);
+      } else {
+        validFiles.push(file);
+      }
+    });
+    setBuilderError(errors.join('\n'));
+    if (!validFiles.length) return;
     setIsBuilderReading(true);
+    const parsedFiles = [];
     try {
-      const parsed = await parseWorkbook(await file.arrayBuffer(), file.name);
-      const headers = [...new Set(parsed.sheets.flatMap((sheet) => sheet.headers))];
-      const sourceHeader = headers.includes('ชีตต้นทาง') ? 'ชีตต้นทาง (แหล่งที่มา)' : 'ชีตต้นทาง';
-      setBuilderFile(parsed);
-      setBuilderRows([]);
-      setBuilderSheets([{ id: `builder-sheet-${Date.now()}`, name: 'ตาราง 1' }]);
-      setBuilderColumns([
-        { id: 'builder-source-sheet', name: sourceHeader, sourceHeader: '__source_sheet__' },
-        ...headers.map((header, index) => ({ id: `builder-source-column-${index}`, name: header, sourceHeader: header })),
-      ]);
-    } catch (error) {
-      setBuilderError(error instanceof Error ? error.message : 'อ่านไฟล์ไม่สำเร็จ');
+      for (const file of validFiles) {
+        try {
+          const parsed = await parseWorkbook(await file.arrayBuffer(), file.name);
+          builderFileInstance.current += 1;
+          parsedFiles.push({ ...parsed, id: `builder-file-${builderFileInstance.current}` });
+        } catch (error) {
+          errors.push(`${file.name}: ${error instanceof Error ? error.message : 'อ่านไฟล์ไม่สำเร็จ'}`);
+        }
+      }
+      if (parsedFiles.length) {
+        setBuilderSourceFiles((previous) => [...previous, ...parsedFiles]);
+        const headers = [...new Set(parsedFiles.flatMap((parsed) => parsed.sheets.flatMap((sheet) => sheet.headers)))];
+        setBuilderColumns((previous) => {
+          const sourceHeader = headers.includes('ชีตต้นทาง') ? 'ชีตต้นทาง (แหล่งที่มา)' : 'ชีตต้นทาง';
+          let currentColumns = previous.length
+            ? previous
+            : [{ id: 'builder-source-sheet', name: sourceHeader, sourceHeader: '__source_sheet__' }];
+          if (headers.includes('ชีตต้นทาง')) {
+            currentColumns = currentColumns.map((column) => (
+              column.sourceHeader === '__source_sheet__' && column.name === 'ชีตต้นทาง'
+                ? { ...column, name: 'ชีตต้นทาง (แหล่งที่มา)' }
+                : column
+            ));
+          }
+          const existingHeaders = new Set(currentColumns.map((column) => column.sourceHeader));
+          const newHeaders = headers.filter((header) => !existingHeaders.has(header));
+          return [
+            ...currentColumns,
+            ...newHeaders.map((header, index) => ({
+              id: `builder-source-column-${currentColumns.length + index}`,
+              name: header,
+              sourceHeader: header,
+            })),
+          ];
+        });
+        setBuilderSheets((previous) => previous.length
+          ? previous
+          : [{ id: `builder-sheet-${Date.now()}`, name: 'ตาราง 1' }]);
+      }
     } finally {
       setIsBuilderReading(false);
     }
+    setBuilderError(errors.join('\n'));
   }
 
   async function exportBuilderRows(filename) {
@@ -1118,11 +1225,12 @@ export default function App() {
         <header className="topbar"><div className="breadcrumbs"><span>Workspace</span><span className="crumb-slash">/</span><strong>{activePage === 'compare' ? 'เปรียบเทียบไฟล์' : 'สร้างตาราง'}</strong></div><div className="topbar-right"><span className="private-pill"><span /> ประมวลผลในเครื่อง</span><button className="help-button" title="ช่วยเหลือ"><CircleHelp size={19} /></button></div></header>
         <div className="page-wrap">
           {activePage === 'builder' ? <TableBuilderPage
-            file={builderFile}
+            sourceFiles={builderSourceFiles}
             fileError={builderError}
             isReading={isBuilderReading}
-            onFile={handleBuilderFile}
-            onClear={() => { setBuilderFile(null); setBuilderRows([]); setBuilderSheets([]); setBuilderColumns([]); setBuilderError(''); }}
+            onFiles={handleBuilderFiles}
+            onRemoveFile={(id) => setBuilderSourceFiles((previous) => previous.filter((file) => file.id !== id))}
+            onClear={() => { setBuilderSourceFiles([]); setBuilderRows([]); setBuilderSheets([]); setBuilderColumns([]); setBuilderError(''); }}
             addedRows={builderRows}
             outputSheets={builderSheets}
             outputColumns={builderColumns}
