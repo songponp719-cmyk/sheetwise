@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { recalculateFormulaValues } from './formulaValues.js';
 import {
   ArrowDown, ArrowLeftRight, ArrowUp, ArrowUpRight, Check, ChevronDown, ChevronLeft, ChevronRight, CircleHelp,
   CloudUpload, Download, FileSpreadsheet, Files, Filter, GripVertical, Info, LoaderCircle, Plus,
@@ -49,6 +50,7 @@ async function parseWorkbook(buffer, filename) {
   const XLSX = await import('@e965/xlsx');
   const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
   if (!workbook.SheetNames.length) throw new Error('ไม่พบชีตข้อมูลในไฟล์นี้');
+  const formulaIssues = await recalculateFormulaValues(workbook, XLSX.utils);
   const sheets = workbook.SheetNames.map((name) => {
     const rawRows = XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, defval: '', raw: false });
     const nonEmptyRows = rawRows.filter((row) => row.some((cell) => String(cell ?? '').trim() !== ''));
@@ -76,7 +78,7 @@ async function parseWorkbook(buffer, filename) {
   });
 
   if (!sheets.some((sheet) => sheet.rows.length)) throw new Error('ไม่พบข้อมูลในชีตของไฟล์นี้');
-  return { filename, sheets };
+  return { filename, sheets, formulaIssues };
 }
 
 function keyFor(value) {
@@ -271,15 +273,18 @@ function DropZone({ index, file, onFile, onClear, error, inputRef, accept = '.xl
         handleFiles(event.target.files);
         event.target.value = '';
       }} />
-      {file ? (
-        <div className="uploaded-file">
-          <span className="file-icon"><FileSpreadsheet size={22} /></span>
-          <div className="file-info">
-            <strong title={file.filename}>{file.filename}</strong>
-            <span>{file.sheets.reduce((total, sheet) => total + sheet.rows.length, 0).toLocaleString()} แถว · {file.sheets.length} ชีต</span>
+        {file ? (
+          <>
+            <div className="uploaded-file">
+              <span className="file-icon"><FileSpreadsheet size={22} /></span>
+              <div className="file-info">
+                <strong title={file.filename}>{file.filename}</strong>
+                <span>{file.sheets.reduce((total, sheet) => total + sheet.rows.length, 0).toLocaleString()} แถว · {file.sheets.length} ชีต</span>
+              </div>
+              <button className="icon-button clear-file" onClick={onClear} aria-label="ลบไฟล์"><X size={17} /></button>
           </div>
-          <button className="icon-button clear-file" onClick={onClear} aria-label="ลบไฟล์"><X size={17} /></button>
-        </div>
+            {file.formulaIssues?.length > 0 && <p className="formula-warning">{file.formulaIssues.length.toLocaleString()} สูตรคำนวณไม่ได้ — แสดงค่าที่บันทึกไว้หรือรหัสข้อผิดพลาด</p>}
+          </>
       ) : (
         <>
           <button className="upload-target" onClick={() => inputRef.current?.click()}>
@@ -337,6 +342,9 @@ function BuilderUploadZone({ files, onFiles, onRemoveFile, onClear, error, input
           </div>
         ))}
       </div>}
+      {files.some((file) => file.formulaIssues?.length > 0) && <p className="formula-warning">
+        {files.reduce((count, file) => count + (file.formulaIssues?.length || 0), 0).toLocaleString()} สูตรคำนวณไม่ได้ — แสดงค่าที่บันทึกไว้หรือรหัสข้อผิดพลาด
+      </p>}
       {error && <p className="error-text">{error}</p>}
     </div>
   );

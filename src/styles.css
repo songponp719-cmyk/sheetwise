@@ -98,6 +98,7 @@ h1 span { color: #6277e8; }
 .file-info span { color: #8795a7; font-size: 9px; }
 .clear-file { border-radius: 5px; }
 .clear-file:hover { color: #d26c76; background: #fff1f2; }
+.formula-warning { margin: 8px 0 0 43px; color: #9a6b27; font-size: var(--font-caption); line-height: 1.5; }
 .error-text { margin: 8px 0 0; color: #cf5966; font-size: 9px; white-space: pre-line; overflow-wrap: anywhere; }
 .cleaning-note { display: flex; align-items: center; gap: 8px; margin-top: 15px; padding: 9px 11px; border: 1px solid #f0edff; border-radius: 7px; background: #faf9ff; color: #818ba0; font-size: 9px; }
 .cleaning-note strong { color: #666fa9; font-weight: 600; }
@@ -206,6 +207,7 @@ tbody tr:hover { background: #fafbff; }
 .table-builder-section > .upload-card { margin-top: 18px; }
 .builder-upload-card .upload-target:disabled { cursor: wait; opacity: .65; }
 .builder-upload-list { display: grid; gap: 7px; max-height: 190px; overflow: auto; margin-top: 12px; padding-top: 10px; border-top: 1px solid #e8edf4; }
+.builder-upload-card > .formula-warning { margin-left: 0; }
 .builder-upload-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .builder-upload-list-heading strong { color: #647189; font-size: var(--font-caption); font-weight: 600; }
 .builder-clear-files { border: 0; padding: 3px 5px; color: #8d98aa; background: transparent; font: inherit; font-size: var(--font-caption); }
